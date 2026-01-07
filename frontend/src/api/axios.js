@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const instance = axios.create({
-  baseURL: "https://workzen-x7tu.onrender.com"
+  baseURL: "https://workzen-x7tu.onrender.com/api"
 });
 
 instance.interceptors.request.use(config => {
