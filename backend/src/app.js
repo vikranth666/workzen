@@ -3,37 +3,41 @@ import cors from "cors";
 
 const app = express();
 
-// 1 Define allowed origins
+// Allowed origins
 const allowedOrigins = [
-  "http://localhost:5173",            // local dev
-  "https://workzenapp.vercel.app"     // deployed frontend
+  "http://localhost:5173",
+  "https://workzenapp.vercel.app"
 ];
 
-// 2 Enable CORS globally BEFORE routes
+// Enable CORS headers
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin) return callback(null, true); // allow non-browser requests (Postman, server)
+    if (!origin) return callback(null, true); // allow server-to-server requests
     if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
-      return callback(new Error(msg), false);
+      return callback(new Error("CORS not allowed"), false);
     }
     return callback(null, true);
   },
-  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
 
-// 3 Handle preflight requests
-app.options("*", cors({
-  origin: allowedOrigins,
-  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+// Handle OPTIONS preflight safely
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    res.header("Access-Control-Allow-Origin", req.headers.origin);
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    return res.sendStatus(204);
+  }
+  next();
+});
 
-// 4 JSON middleware
+// JSON parser
 app.use(express.json());
 
-// 5 Routes
+// Routes
 import authRoutes from "./routes/auth.routes.js";
 import employeeRoutes from "./routes/employee.routes.js";
 
@@ -41,4 +45,3 @@ app.use("/api/auth", authRoutes);
 app.use("/api/employees", employeeRoutes);
 
 export default app;
-
