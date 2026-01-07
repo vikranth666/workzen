@@ -4,7 +4,11 @@ import authRoutes from "./routes/auth.routes.js";
 import employeeRoutes from "./routes/employee.routes.js";
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: "https://workzenapp.vercel.app/",
+  credentials: true,
+}));
+
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
