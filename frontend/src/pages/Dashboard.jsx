@@ -126,11 +126,22 @@ function EmployeeModal({ isOpen, onClose, employee, onSave, mode = "create" }) {
 
 export default function Dashboard() {
   const [employees, setEmployees] = useState([]);
+  const [filteredEmployees, setFilteredEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [modalMode, setModalMode] = useState("create");
+  
+  // Search and Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
+  
   const [stats, setStats] = useState({
     total: 0,
     byDepartment: {},
@@ -142,6 +153,7 @@ export default function Dashboard() {
       setLoading(true);
       const res = await axios.get("/employees");
       setEmployees(res.data);
+      setFilteredEmployees(res.data);
       
       // Calculate stats
       const byDept = res.data.reduce((acc, emp) => {
@@ -171,6 +183,39 @@ export default function Dashboard() {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  // Search and Filter Logic
+  useEffect(() => {
+    let result = [...employees];
+    
+    // Search filter
+    if (searchTerm) {
+      result = result.filter(emp => 
+        emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.role.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Department filter
+    if (departmentFilter) {
+      result = result.filter(emp => emp.department === departmentFilter);
+    }
+    
+    // Role filter
+    if (roleFilter) {
+      result = result.filter(emp => emp.role.toLowerCase().includes(roleFilter.toLowerCase()));
+    }
+    
+    setFilteredEmployees(result);
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [searchTerm, departmentFilter, roleFilter, employees]);
+
+  // Pagination Logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentEmployees = filteredEmployees.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
 
   const handleCreateEmployee = async (data) => {
     try {
@@ -213,8 +258,16 @@ export default function Dashboard() {
     setIsModalOpen(true);
   };
 
+  const clearFilters = () => {
+    setSearchTerm("");
+    setDepartmentFilter("");
+    setRoleFilter("");
+  };
+
   const topDepartment = Object.entries(stats.byDepartment)
     .sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+
+  const uniqueDepartments = [...new Set(employees.map(emp => emp.department))];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -274,6 +327,76 @@ export default function Dashboard() {
           <SummaryCard title="Top Department" value={topDepartment} loading={loading} />
         </div>
 
+        {/* Search and Filter Section */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex flex-wrap gap-4 items-end">
+            {/* Search */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by name, email, or role..."
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+                <svg className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Department Filter */}
+            <div className="w-48">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="">All Departments</option>
+                {uniqueDepartments.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+
+         
+
+            {/* Items Per Page */}
+            <div className="w-32">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Show</label>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value={6}>6 per page</option>
+                <option value={12}>12 per page</option>
+                <option value={24}>24 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+            </div>
+
+            {/* Clear Filters */}
+            {(searchTerm || departmentFilter || roleFilter) && (
+              <button
+                onClick={clearFilters}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          {/* Results Info */}
+          <div className="mt-4 text-sm text-gray-600">
+            Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredEmployees.length)} of {filteredEmployees.length} employees
+            {(searchTerm || departmentFilter || roleFilter) && ` (filtered from ${employees.length} total)`}
+          </div>
+        </div>
+
         {/* Employees Grid */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
@@ -288,76 +411,164 @@ export default function Dashboard() {
               </svg>
               <p className="mt-4 text-gray-500">Loading employees...</p>
             </div>
-          ) : employees.length === 0 ? (
+          ) : filteredEmployees.length === 0 ? (
             <div className="p-12 text-center">
               <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No employees yet</h3>
-              <p className="text-gray-500 mb-6">Get started by adding your first employee</p>
-              <button 
-                onClick={openCreateModal}
-                className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors"
-              >
-                Add Employee
-              </button>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No employees found</h3>
+              <p className="text-gray-500 mb-6">
+                {employees.length === 0 ? "Get started by adding your first employee" : "Try adjusting your search or filter criteria"}
+              </p>
+              {employees.length === 0 ? (
+                <button 
+                  onClick={openCreateModal}
+                  className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors"
+                >
+                  Add Employee
+                </button>
+              ) : (
+                <button 
+                  onClick={clearFilters}
+                  className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
             </div>
           ) : (
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {employees.map((employee) => (
-                  <div key={employee._id} className="bg-white border border-gray-200 rounded-xl shadow hover:shadow-lg transition-shadow p-6">
-                    <div className="flex items-center mb-4">
-                      <div className="flex-shrink-0 h-12 w-12 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                        {employee.name.charAt(0).toUpperCase()}
+            <>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {currentEmployees.map((employee) => (
+                    <div key={employee._id} className="bg-white border border-gray-200 rounded-xl shadow hover:shadow-lg transition-shadow p-6">
+                      <div className="flex items-center mb-4">
+                        <div className="flex-shrink-0 h-12 w-12 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                          {employee.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="ml-4 flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900">{employee.name}</h3>
+                          <p className="text-sm text-gray-500">{employee.role}</p>
+                        </div>
                       </div>
-                      <div className="ml-4 flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900">{employee.name}</h3>
-                        <p className="text-sm text-gray-500">{employee.role}</p>
+                      
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          {employee.email}
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <svg className="w-4 h-4 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                            {employee.department}
+                          </span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Joined {new Date(employee.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 pt-4 border-t border-gray-200">
+                        <button
+                          onClick={() => openEditModal(employee)}
+                          className="flex-1 px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEmployee(employee._id)}
+                          className="flex-1 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
-                    
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        {employee.email}
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <svg className="w-4 h-4 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">
-                          {employee.department}
-                        </span>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        Joined {new Date(employee.createdAt).toLocaleDateString()}
-                      </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Page {currentPage} of {totalPages}
                     </div>
                     
-                    <div className="flex gap-2 pt-4 border-t border-gray-200">
+                    <div className="flex gap-2">
                       <button
-                        onClick={() => openEditModal(employee)}
-                        className="flex-1 px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        Edit
+                        First
                       </button>
+                      
                       <button
-                        onClick={() => handleDeleteEmployee(employee._id)}
-                        className="flex-1 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        Delete
+                        Previous
+                      </button>
+                      
+                      {/* Page Numbers */}
+                      <div className="flex gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1 text-sm font-medium rounded-lg transition-colors ${
+                                currentPage === pageNum
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                      </button>
+                      
+                      <button
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Last
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
