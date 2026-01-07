@@ -20,7 +20,7 @@ export default function Login() {
       const res = await axios.post("/auth/login", formData);
       
       // Store token in memory instead of localStorage
-      sessionStorage.setItem("token", res.data.token);
+      localStorage.setItem("token", res.data.token);
       
       // Redirect to dashboard
       window.location.href = "/dashboard";
